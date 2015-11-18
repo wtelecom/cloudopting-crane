@@ -1,7 +1,6 @@
 commander:
-   extends:
-     file: ./commander/compose.yml
-     service: commander
+   image: josefuentes/cranecommander
+   hostname: cocommander
    container_name: co_commander
    environment:
      - DEBUG=true
@@ -9,6 +8,7 @@ commander:
    ports:
      - "8888:8888"
    volumes:
+     - ./commander/certs:/var/lib/commander/certs
      - ./commander/commander-data-tests/r10k/git:/root/.r10k/git
      - ./commander/commander-data-tests/var/crane:/var/crane/
      # Override application copied with the actual folder mounted as volume.
@@ -20,6 +20,7 @@ commander:
      - engine:coengine
      - emulatedhost
    restart: always
+   command: python /usr/src/commander/commander.py
 
 
 registry:
@@ -35,13 +36,21 @@ registry:
 
 
 engine:
-  extends:
-    file: ./engine/compose.yml
-    service: engine
+  image: josefuentes/craneengine
+  privileged: true
+  volumes:
+    - /var/lib/docker
+    - /lib/modules:/lib/modules
+    - ./engine/certs:/var/lib/coengine/certs
+  hostname: coengine
+  environment:
+    - DOCKER_DAEMON_ARGS=--tlsverify --tlscacert=/var/lib/coengine/certs/ca.pem --tlscert=/var/lib/coengine/certs/server-cert.pem --tlskey=/var/lib/coengine/certs/server-key.pem
+    - PORT=4243
   container_name: co_engine
   links:
     - registry:coregistry
   restart: always
+  command: /root/launch.sh
 
 
 redis:
@@ -52,12 +61,18 @@ redis:
   restart: always
 
 emulatedhost:
-  extends:
-    file: ./tests/emulatedhost/compose.yml
-    service: emulatedhost
+  image: josefuentes/craneengine
+  privileged: true
+  volumes:
+    - /var/lib/docker
+    - /lib/modules:/lib/modules
+    - ./tests/emulatedhost/certs:/var/lib/emulatedhost/certs
+  hostname: emulatedhost
+  environment:
+    - DOCKER_DAEMON_ARGS=--tlsverify --tlscacert=/var/lib/emulatedhost/certs/ca.pem --tlscert=/var/lib/emulatedhost/certs/emulatedhost-cert.pem --tlskey=/var/lib/emulatedhost/certs/emulatedhost-key.pem
+    - PORT=4243
   container_name: co_emulatedhost
   links:
     - registry:coregistry
   restart: always
-# Uncomment this to run manually
-#  command: tail -f /dev/null
+  command: /root/launch.sh
